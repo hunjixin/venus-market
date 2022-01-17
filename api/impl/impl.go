@@ -22,10 +22,9 @@ import (
 	mTypes "github.com/filecoin-project/venus-messager/types"
 	"github.com/filecoin-project/venus/app/client/apiface"
 	"github.com/filecoin-project/venus/app/submodule/apitypes"
-	paych3 "github.com/filecoin-project/venus/app/submodule/paych"
 	"github.com/filecoin-project/venus/pkg/constants"
+	"github.com/filecoin-project/venus/pkg/paychmgr"
 	vTypes "github.com/filecoin-project/venus/pkg/types"
-	"github.com/filecoin-project/venus/pkg/types/specactors/builtin/paych"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -56,7 +55,7 @@ type MarketNodeImpl struct {
 	SectorAccessor                              retrievalmarket.SectorAccessor
 	Messager                                    clients2.IMessager `optional:"true"`
 	DAGStore                                    *dagstore.DAGStore
-	paychanel                                   *paych3.PaychAPI
+	paychMgr                                    *paychmgr.Manager
 	ConsiderOnlineStorageDealsConfigFunc        config.ConsiderOnlineStorageDealsConfigFunc
 	SetConsiderOnlineStorageDealsConfigFunc     config.SetConsiderOnlineStorageDealsConfigFunc
 	ConsiderOnlineRetrievalDealsConfigFunc      config.ConsiderOnlineRetrievalDealsConfigFunc
@@ -660,10 +659,11 @@ func (m MarketNodeImpl) ExportData(ctx context.Context, dst string) error {
 	type exportData struct {
 		Miner          address.Address
 		MinerDeals     []storagemarket.MinerDeal
-		SignedVoucher  map[address.Address][]*paych.SignedVoucher
+		SignedVoucher  map[address.Address]*paychmgr.ChannelInfo
 		StorageAsk     *storagemarket.SignedStorageAsk
 		RetrievalAsk   *retrievalmarket.Ask
 		RetrievalDeals map[retrievalmarket.ProviderDealIdentifier]retrievalmarket.ProviderDealState
+		PieceInfos     map[cid.Cid]piecestore.PieceInfo
 	}
 
 	mAddr, err := address.NewFromString(m.Cfg.MinerAddress)
@@ -674,22 +674,35 @@ func (m MarketNodeImpl) ExportData(ctx context.Context, dst string) error {
 	if err != nil {
 		return err
 	}
-	paymentList, err := m.paychanel.PaychList(ctx)
+	channelAddrs, err := m.paychMgr.ListChannels()
 	if err != nil {
 		return err
 	}
-	voucherDetail := map[address.Address][]*paych.SignedVoucher{}
-	for _, p := range paymentList {
-		voucherList, err := m.paychanel.PaychVoucherList(ctx, p)
+	voucherDetail := map[address.Address]*paychmgr.ChannelInfo{}
+	for _, p := range channelAddrs {
+		channelInfo, err := m.paychMgr.GetChannelInfo(p)
 		if err != nil {
 			return err
 		}
-		voucherDetail[p] = voucherList
+		voucherDetail[p] = channelInfo
 	}
 	storageAsk := m.StorageProvider.GetAsk()
 
 	retrievalDeals := m.RetrievalProvider.ListDeals()
 	retrievalAsk := m.RetrievalProvider.GetAsk()
+
+	piececids, err := m.PieceStore.ListPieceInfoKeys()
+	if err != nil {
+		return err
+	}
+	allPieceInfo := map[cid.Cid]piecestore.PieceInfo{}
+	for _, piececid := range piececids {
+		pieceInfo, err := m.PieceStore.GetPieceInfo(piececid)
+		if err != nil {
+			return err
+		}
+		allPieceInfo[piececid] = pieceInfo
+	}
 
 	data := exportData{
 		Miner:          mAddr,
@@ -698,6 +711,7 @@ func (m MarketNodeImpl) ExportData(ctx context.Context, dst string) error {
 		StorageAsk:     storageAsk,
 		RetrievalAsk:   retrievalAsk,
 		RetrievalDeals: retrievalDeals,
+		PieceInfos:     allPieceInfo,
 	}
 	exportDataBytes, err := json.Marshal(data)
 	if err != nil {
