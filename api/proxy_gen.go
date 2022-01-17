@@ -149,6 +149,8 @@ type MarketFullNodeStruct struct {
 
 		DealsSetPieceCidBlocklist func(p0 context.Context, p1 []cid.Cid) error `perm:"admin"`
 
+		ExportData func(p0 context.Context, p1 string) error `perm:"admin"`
+
 		GetDeals func(p0 context.Context, p1 address.Address, p2 int, p3 int) ([]*piece.DealInfo, error) `perm:"read"`
 
 		GetUnPackedDeals func(p0 context.Context, p1 address.Address, p2 *piece.GetDealSpec) ([]*piece.DealInfoIncludePath, error) `perm:"read"`
@@ -683,6 +685,14 @@ func (s *MarketFullNodeStruct) DealsSetPieceCidBlocklist(p0 context.Context, p1 
 }
 
 func (s *MarketFullNodeStub) DealsSetPieceCidBlocklist(p0 context.Context, p1 []cid.Cid) error {
+	return xerrors.New("method not supported")
+}
+
+func (s *MarketFullNodeStruct) ExportData(p0 context.Context, p1 string) error {
+	return s.Internal.ExportData(p0, p1)
+}
+
+func (s *MarketFullNodeStub) ExportData(p0 context.Context, p1 string) error {
 	return xerrors.New("method not supported")
 }
 

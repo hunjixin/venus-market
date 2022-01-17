@@ -42,9 +42,9 @@ var (
 
 var (
 	RepoFlag = &cli.StringFlag{
-		Name:  "repo",
+		Name:    "repo",
 		EnvVars: []string{"VENUS_MARKET_PATH"},
-		Value: "~/.venusmarket",
+		Value:   "~/.venusmarket",
 	}
 
 	NodeUrlFlag = &cli.StringFlag{
@@ -119,6 +119,7 @@ func main() {
 			cli2.NetCmd,
 			cli2.DataTransfersCmd,
 			cli2.DagstoreCmd,
+			cli2.ExportCmds,
 		},
 	}
 

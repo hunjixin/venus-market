@@ -2,6 +2,7 @@ package impl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/filecoin-project/dagstore"
 	"github.com/filecoin-project/dagstore/shard"
@@ -21,14 +22,17 @@ import (
 	mTypes "github.com/filecoin-project/venus-messager/types"
 	"github.com/filecoin-project/venus/app/client/apiface"
 	"github.com/filecoin-project/venus/app/submodule/apitypes"
+	paych3 "github.com/filecoin-project/venus/app/submodule/paych"
 	"github.com/filecoin-project/venus/pkg/constants"
 	vTypes "github.com/filecoin-project/venus/pkg/types"
+	"github.com/filecoin-project/venus/pkg/types/specactors/builtin/paych"
 	"github.com/ipfs/go-cid"
 	logging "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
+	"io/ioutil"
 	"os"
 	"sort"
 	"time"
@@ -41,18 +45,18 @@ type MarketNodeImpl struct {
 	FundAPI
 	MarketEventAPI
 	fx.In
-	Cfg               *config.MarketConfig
-	FullNode          apiface.FullNode
-	Host              host.Host
-	StorageProvider   storagemarket.StorageProvider
-	RetrievalProvider retrievalmarket.RetrievalProvider
-	DataTransfer      network.ProviderDataTransfer
-	DealPublisher     *storageadapter2.DealPublisher
-	PieceStore        piece.ExtendPieceStore
-	SectorAccessor    retrievalmarket.SectorAccessor
-	Messager          clients2.IMessager `optional:"true"`
-	DAGStore          *dagstore.DAGStore
-
+	Cfg                                         *config.MarketConfig
+	FullNode                                    apiface.FullNode
+	Host                                        host.Host
+	StorageProvider                             storagemarket.StorageProvider
+	RetrievalProvider                           retrievalmarket.RetrievalProvider
+	DataTransfer                                network.ProviderDataTransfer
+	DealPublisher                               *storageadapter2.DealPublisher
+	PieceStore                                  piece.ExtendPieceStore
+	SectorAccessor                              retrievalmarket.SectorAccessor
+	Messager                                    clients2.IMessager `optional:"true"`
+	DAGStore                                    *dagstore.DAGStore
+	paychanel                                   *paych3.PaychAPI
 	ConsiderOnlineStorageDealsConfigFunc        config.ConsiderOnlineStorageDealsConfigFunc
 	SetConsiderOnlineStorageDealsConfigFunc     config.SetConsiderOnlineStorageDealsConfigFunc
 	ConsiderOnlineRetrievalDealsConfigFunc      config.ConsiderOnlineRetrievalDealsConfigFunc
@@ -650,4 +654,54 @@ func (m MarketNodeImpl) DealsImportData(ctx context.Context, dealPropCid cid.Cid
 
 func (m MarketNodeImpl) GetDeals(ctx context.Context, miner address.Address, pageIndex, pageSize int) ([]*piece.DealInfo, error) {
 	return m.PieceStore.GetDeals(pageIndex, pageSize)
+}
+
+func (m MarketNodeImpl) ExportData(ctx context.Context, dst string) error {
+	type exportData struct {
+		Miner          address.Address
+		MinerDeals     []storagemarket.MinerDeal
+		SignedVoucher  map[address.Address][]*paych.SignedVoucher
+		StorageAsk     *storagemarket.SignedStorageAsk
+		RetrievalAsk   *retrievalmarket.Ask
+		RetrievalDeals map[retrievalmarket.ProviderDealIdentifier]retrievalmarket.ProviderDealState
+	}
+
+	mAddr, err := address.NewFromString(m.Cfg.MinerAddress)
+	if err != nil {
+		return err
+	}
+	minerDeals, err := m.StorageProvider.ListLocalDeals()
+	if err != nil {
+		return err
+	}
+	paymentList, err := m.paychanel.PaychList(ctx)
+	if err != nil {
+		return err
+	}
+	voucherDetail := map[address.Address][]*paych.SignedVoucher{}
+	for _, p := range paymentList {
+		voucherList, err := m.paychanel.PaychVoucherList(ctx, p)
+		if err != nil {
+			return err
+		}
+		voucherDetail[p] = voucherList
+	}
+	storageAsk := m.StorageProvider.GetAsk()
+
+	retrievalDeals := m.RetrievalProvider.ListDeals()
+	retrievalAsk := m.RetrievalProvider.GetAsk()
+
+	data := exportData{
+		Miner:          mAddr,
+		MinerDeals:     minerDeals,
+		SignedVoucher:  voucherDetail,
+		StorageAsk:     storageAsk,
+		RetrievalAsk:   retrievalAsk,
+		RetrievalDeals: retrievalDeals,
+	}
+	exportDataBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(dst, exportDataBytes, 0777)
 }

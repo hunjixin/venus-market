@@ -142,6 +142,8 @@ type MarketFullNode interface {
 	//market event
 	ResponseMarketEvent(ctx context.Context, resp *types2.ResponseEvent) error                                            //perm:read
 	ListenMarketEvent(ctx context.Context, policy *marketevent.MarketRegisterPolicy) (<-chan *types2.RequestEvent, error) //perm:read
+
+	ExportData(ctx context.Context, dst string) error //perm:admin
 }
 
 type MarketClientNode interface {
