@@ -2,7 +2,9 @@ package impl
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"sort"
 	"time"
@@ -709,4 +711,92 @@ func (m MarketNodeImpl) GetDeals(ctx context.Context, miner address.Address, pag
 
 func (m MarketNodeImpl) PaychVoucherList(ctx context.Context, pch address.Address) ([]*paych.SignedVoucher, error) {
 	return m.PaychAPI.PaychVoucherList(ctx, pch)
+}
+
+func (m MarketNodeImpl) ImportData(ctx context.Context, src string) error {
+	type exportData struct {
+		Miner          address.Address
+		MinerDeals     []storagemarket.MinerDeal
+		SignedVoucher  map[address.Address][]*paych.SignedVoucher
+		StorageAsk     *storagemarket.SignedStorageAsk
+		RetrievalAsk   *retrievalmarket.Ask
+		RetrievalDeals map[retrievalmarket.ProviderDealIdentifier]retrievalmarket.ProviderDealState
+	}
+
+	srcBytes, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	data := exportData{}
+	err = json.Unmarshal(srcBytes, &data)
+	if err != nil {
+		return err
+	}
+
+	err = m.Repo.StorageAskRepo().SetAsk(ctx, data.StorageAsk)
+	if err != nil {
+		return err
+	}
+
+	err = m.Repo.RetrievalAskRepo().SetAsk(ctx, &types.RetrievalAsk{
+		Miner:                   data.Miner,
+		PricePerByte:            data.RetrievalAsk.PricePerByte,
+		UnsealPrice:             data.RetrievalAsk.UnsealPrice,
+		PaymentInterval:         data.RetrievalAsk.PaymentInterval,
+		PaymentIntervalIncrease: data.RetrievalAsk.PaymentIntervalIncrease,
+	})
+	if err != nil {
+		return err
+	}
+
+	/*	for pach, voucher := range data.SignedVoucher {
+		m.Repo.PaychChannelInfoRepo().SaveChannel(ctx, )
+	}*/
+
+	for _, minerDeal := range data.MinerDeals {
+		m.Repo.StorageDealRepo().SaveDeal(ctx, &types.MinerDeal{
+			ClientDealProposal: minerDeal.ClientDealProposal,
+			ProposalCid:        minerDeal.ProposalCid,
+			AddFundsCid:        minerDeal.AddFundsCid,
+			PublishCid:         minerDeal.PublishCid,
+			Miner:              minerDeal.Miner,
+			Client:             minerDeal.Client,
+			State:              minerDeal.State,
+			PiecePath:          minerDeal.PiecePath,
+			//	PayloadSize:           ,//
+			MetadataPath:          minerDeal.MetadataPath,
+			SlashEpoch:            minerDeal.SlashEpoch,
+			FastRetrieval:         minerDeal.FastRetrieval,
+			Message:               minerDeal.Message,
+			FundsReserved:         minerDeal.FundsReserved,
+			Ref:                   minerDeal.Ref,
+			AvailableForRetrieval: minerDeal.AvailableForRetrieval,
+			DealID:                minerDeal.DealID,
+			CreationTime:          minerDeal.CreationTime,
+			TransferChannelId:     minerDeal.TransferChannelId,
+			SectorNumber:          minerDeal.SectorNumber,
+			//	Offset:                minerDeal.off,
+			//	PieceStatus:           minerDeal.pieces,?
+			InboundCAR: minerDeal.InboundCAR,
+		})
+	}
+
+	for _, retrievalDeal := range data.RetrievalDeals {
+		m.Repo.RetrievalDealRepo().SaveDeal(ctx, &types.ProviderDealState{
+			DealProposal: retrievalDeal.DealProposal,
+			StoreID:      retrievalDeal.StoreID,
+			//	SelStorageProposalCid: cid.Undef,
+			ChannelID:       retrievalDeal.ChannelID,
+			Status:          retrievalDeal.Status,
+			Receiver:        retrievalDeal.Receiver,
+			TotalSent:       retrievalDeal.TotalSent,
+			FundsReceived:   retrievalDeal.FundsReceived,
+			Message:         retrievalDeal.Message,
+			CurrentInterval: retrievalDeal.CurrentInterval,
+			LegacyProtocol:  retrievalDeal.LegacyProtocol,
+		})
+	}
+
+	return nil
 }
