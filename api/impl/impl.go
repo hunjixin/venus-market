@@ -32,6 +32,7 @@ import (
 	"go.uber.org/fx"
 	"golang.org/x/xerrors"
 	"io/ioutil"
+	"math"
 	"os"
 	"sort"
 	"time"
@@ -656,14 +657,18 @@ func (m MarketNodeImpl) GetDeals(ctx context.Context, miner address.Address, pag
 }
 
 func (m MarketNodeImpl) ExportData(ctx context.Context, dst string) error {
+	type minerDealsIncludeStatus struct {
+		MinerDeal storagemarket.MinerDeal
+		DealInfo  piecestore.DealInfo
+		Status    string
+	}
 	type exportData struct {
 		Miner          address.Address
-		MinerDeals     []storagemarket.MinerDeal
+		MinerDeals     []minerDealsIncludeStatus
 		SignedVoucher  map[address.Address]*paychmgr.ChannelInfo
 		StorageAsk     *storagemarket.SignedStorageAsk
 		RetrievalAsk   *retrievalmarket.Ask
 		RetrievalDeals map[retrievalmarket.ProviderDealIdentifier]retrievalmarket.ProviderDealState
-		PieceInfos     map[cid.Cid]piecestore.PieceInfo
 	}
 
 	mAddr, err := address.NewFromString(m.Cfg.MinerAddress)
@@ -691,27 +696,39 @@ func (m MarketNodeImpl) ExportData(ctx context.Context, dst string) error {
 	retrievalDeals := m.RetrievalProvider.ListDeals()
 	retrievalAsk := m.RetrievalProvider.GetAsk()
 
-	piececids, err := m.PieceStore.ListPieceInfoKeys()
+	dealInfos, err := m.PieceStore.GetDeals(0, math.MaxInt64)
 	if err != nil {
 		return err
 	}
-	allPieceInfo := map[cid.Cid]piecestore.PieceInfo{}
-	for _, piececid := range piececids {
-		pieceInfo, err := m.PieceStore.GetPieceInfo(piececid)
-		if err != nil {
-			return err
+	var dealsInfos map[abi.DealID]*piece.DealInfo
+	for _, dealInfo := range dealInfos {
+		if dealInfo.DealID > 0 {
+			dealsInfos[dealInfo.DealID] = dealInfo
 		}
-		allPieceInfo[piececid] = pieceInfo
+	}
+	var deals []minerDealsIncludeStatus
+	for _, minerDeal := range minerDeals {
+		minerDealIncludeStatus := minerDealsIncludeStatus{
+			MinerDeal: minerDeal,
+			DealInfo:  piecestore.DealInfo{},
+			Status:    piece.Undefine,
+		}
+		deals = append(deals, minerDealIncludeStatus)
+		if minerDeal.DealID > 0 {
+			if val, ok := dealsInfos[minerDeal.DealID]; ok {
+				minerDealIncludeStatus.DealInfo = val.DealInfo
+				minerDealIncludeStatus.Status = val.Status
+			}
+		}
 	}
 
 	data := exportData{
 		Miner:          mAddr,
-		MinerDeals:     minerDeals,
+		MinerDeals:     deals,
 		SignedVoucher:  voucherDetail,
 		StorageAsk:     storageAsk,
 		RetrievalAsk:   retrievalAsk,
 		RetrievalDeals: retrievalDeals,
-		PieceInfos:     allPieceInfo,
 	}
 	exportDataBytes, err := json.Marshal(data)
 	if err != nil {
