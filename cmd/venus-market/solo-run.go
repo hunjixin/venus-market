@@ -40,9 +40,14 @@ var soloRunCmd = &cli.Command{
 	Flags: []cli.Flag{
 		NodeUrlFlag,
 		NodeTokenFlag,
+
+		MessagerUrlFlag,
+		MessagerTokenFlag,
+
 		HidenSignerTypeFlag,
 		WalletUrlFlag,
 		WalletTokenFlag,
+
 		PieceStorageFlag,
 		MysqlDsnFlag,
 		MinerListFlag,

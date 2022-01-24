@@ -40,9 +40,16 @@ var (
 		Name:  "node-url",
 		Usage: "url to connect to daemon service",
 	}
+
 	NodeTokenFlag = &cli.StringFlag{
 		Name:  "node-token",
 		Usage: "node token",
+	}
+
+	HiddenNodeTokenFlag = &cli.StringFlag{
+		Name:   "node-token",
+		Usage:  "node token",
+		Hidden: true,
 	}
 
 	AuthUrlFlag = &cli.StringFlag{
@@ -58,7 +65,13 @@ var (
 		Name:  "messager-url",
 		Usage: "url to connect messager service",
 	}
+
 	MessagerTokenFlag = &cli.StringFlag{
+		Name:  "messager-token",
+		Usage: "messager token",
+	}
+
+	HiddenMessagerTokenFlag = &cli.StringFlag{
 		Name:   "messager-token",
 		Usage:  "messager token",
 		Hidden: true,
@@ -69,6 +82,7 @@ var (
 		Usage:       "signer service type（wallet, gateway）",
 		DefaultText: "wallet",
 	}
+
 	HidenSignerTypeFlag = &cli.StringFlag{
 		Name:        "signer-type",
 		Usage:       "signer service type（wallet, gateway）",
@@ -90,10 +104,18 @@ var (
 		Aliases: []string{"signer-url"},
 		Usage:   "used to connect gateway service for sign",
 	}
+
 	GatewayTokenFlag = &cli.StringFlag{
 		Name:    "gateway-token",
 		Aliases: []string{"signer-token"},
 		Usage:   "used to connect gateway service for sign",
+	}
+
+	HiddenGatewayTokenFlag = &cli.StringFlag{
+		Name:    "gateway-token",
+		Aliases: []string{"signer-token"},
+		Usage:   "used to connect gateway service for sign",
+		Hidden:  true,
 	}
 
 	WalletUrlFlag = &cli.StringFlag{
@@ -108,18 +130,25 @@ var (
 	}
 
 	PieceStorageFlag = &cli.StringFlag{
-		Name:  "piecestorage",
-		Usage: "config storage for piece  (eg  fs:/mnt/piece   s3:{access key}:{secret key}:{option token}@{region}host/{bucket}",
+		Name:    "piecestorage",
+		EnvVars: []string{"MARKET_PIECE_STORAGE"},
+		Usage:   "config storage for piece  (eg  fs:/mnt/piece   s3:{access key}:{secret key}:{option token}@{region}host/{bucket}",
 	}
 
 	MysqlDsnFlag = &cli.StringFlag{
-		Name:  "mysql-dsn",
-		Usage: "mysql connection string",
+		Name:    "mysql-dsn",
+		EnvVars: []string{"MARKET_MYSQL_DSN"},
+		Usage:   "mysql connection string",
 	}
 
 	MinerListFlag = &cli.StringSliceFlag{
 		Name:  "miner",
 		Usage: "support miner(f01000:jimmy)",
+	}
+	HidenMinerListFlag = &cli.StringSliceFlag{
+		Name:   "miner",
+		Usage:  "support miner(f01000:jimmy)",
+		Hidden: true,
 	}
 	PaymentAddressFlag = &cli.StringFlag{
 		Name:  "payment-addr",

@@ -39,17 +39,21 @@ var poolRunCmd = &cli.Command{
 	ArgsUsage: "[minerAddress]",
 	Flags: []cli.Flag{
 		NodeUrlFlag,
-		NodeTokenFlag,
-		AuthUrlFlag,
-		AuthTokeFlag,
+		HiddenNodeTokenFlag,
+
 		MessagerUrlFlag,
-		MessagerTokenFlag,
+		HiddenMessagerTokenFlag,
+
 		HidenSignerTypeFlag,
 		GatewayUrlFlag,
-		GatewayTokenFlag,
+		HiddenGatewayTokenFlag,
+
+		AuthUrlFlag,
+		AuthTokeFlag,
+
 		PieceStorageFlag,
 		MysqlDsnFlag,
-		MinerListFlag,
+		HidenMinerListFlag,
 		PaymentAddressFlag,
 	},
 	Action: poolDaemon,
