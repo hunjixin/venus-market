@@ -74,16 +74,16 @@ func run(repo string, dst string, ctx context.Context) error {
 	cfg := config.DefaultMarketConfig
 	err := config.LoadConfig(cfgPath, cfg)
 
-	dbPath := path.Join(repo, "datastore")
+	dbPath := path.Join(repo, "metadata")
 	metadataDS, err := badger.NewDatastore(dbPath, &badger.DefaultOptions)
 	if err != nil {
 		return err
 	}
 	provierDs := models.NewProviderDealDS(metadataDS)
 	storageAskDs := models.NewStorageAskDS(provierDs)
-	minerDealsStore := statestore.New(namespace.Wrap(provierDs, datastore.NewKey(string(versioning.VersionKey("1")))))
+	minerDealsStore := statestore.New(namespace.Wrap(provierDs, datastore.NewKey(string("1"))))
 
-	retrievalDS := models.NewRetrievalClientDS(metadataDS)
+	retrievalDS := models.NewRetrievalProviderDS(metadataDS)
 	retrievalAskDs := models.NewRetrievalAskDS(retrievalDS)
 	retrievalDealsStore := statestore.New(namespace.Wrap(retrievalDS, datastore.NewKey(string(versioning.VersionKey("1")))))
 
@@ -100,10 +100,10 @@ func run(repo string, dst string, ctx context.Context) error {
 	type exportData struct {
 		Miner          address.Address
 		MinerDeals     []minerDealsIncludeStatus
-		SignedVoucher  map[address.Address]*paychmgr.ChannelInfo
+		SignedVoucher  map[string]*paychmgr.ChannelInfo
 		StorageAsk     *storagemarket.SignedStorageAsk
 		RetrievalAsk   *retrievalmarket.Ask
-		RetrievalDeals map[retrievalmarket.ProviderDealIdentifier]retrievalmarket.ProviderDealState
+		RetrievalDeals []retrievalmarket.ProviderDealState
 	}
 
 	mAddr, err := address.NewFromString(cfg.MinerAddress)
@@ -121,27 +121,22 @@ func run(repo string, dst string, ctx context.Context) error {
 		return err
 	}
 
-	dealMap := make(map[retrievalmarket.ProviderDealIdentifier]retrievalmarket.ProviderDealState)
-	for _, deal := range retrievalDeals {
-		dealMap[retrievalmarket.ProviderDealIdentifier{Receiver: deal.Receiver, DealID: deal.ID}] = deal
-	}
-
 	//voucher
 	channelAddrs, err := payCh.ListChannels()
 	if err != nil {
 		return err
 	}
 
-	voucherDetail := map[address.Address]*paychmgr.ChannelInfo{}
+	voucherDetail := map[string]*paychmgr.ChannelInfo{}
 	for _, p := range channelAddrs {
 		channelInfo, err := payCh.GetChannelInfo(p)
 		if err != nil {
 			return err
 		}
-		voucherDetail[p] = channelInfo
+		voucherDetail[p.String()] = channelInfo
 	}
 	//storage ask
-	askb, err := storageAskDs.Get(datastore.NewKey("latest"))
+	askb, err := namespace.Wrap(storageAskDs, datastore.NewKey("1")).Get(datastore.NewKey("latest"))
 	if err != nil {
 		return fmt.Errorf("failed to load most recent ask from disk: %w", err)
 	}
@@ -152,7 +147,7 @@ func run(repo string, dst string, ctx context.Context) error {
 	}
 
 	//retrieval ask
-	raskb, err := retrievalAskDs.Get(datastore.NewKey("latest"))
+	raskb, err := namespace.Wrap(retrievalAskDs, datastore.NewKey("1")).Get(datastore.NewKey("latest"))
 	if err != nil {
 		return fmt.Errorf("failed to load most recent retrieval ask from disk: %w", err)
 	}
@@ -171,7 +166,8 @@ func run(repo string, dst string, ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	var dealsInfos map[abi.DealID]*piece.DealInfo
+
+	dealsInfos := make(map[abi.DealID]*piece.DealInfo)
 	for _, dealInfo := range dealInfos {
 		if dealInfo.DealID > 0 {
 			dealsInfos[dealInfo.DealID] = dealInfo
@@ -199,10 +195,10 @@ func run(repo string, dst string, ctx context.Context) error {
 		SignedVoucher:  voucherDetail,
 		StorageAsk:     &storageAsk,
 		RetrievalAsk:   &retrievalAsk,
-		RetrievalDeals: dealMap,
+		RetrievalDeals: retrievalDeals,
 	}
 
-	exportDataBytes, err := json.Marshal(data)
+	exportDataBytes, err := json.Marshal(&data)
 	if err != nil {
 		return err
 	}
