@@ -8,13 +8,10 @@ import (
 	"github.com/filecoin-project/go-address"
 	cborutil "github.com/filecoin-project/go-cbor-util"
 	versioning "github.com/filecoin-project/go-ds-versioning/pkg"
-	versionedfsm "github.com/filecoin-project/go-ds-versioning/pkg/fsm"
 	"github.com/filecoin-project/go-fil-markets/piecestore"
 	"github.com/filecoin-project/go-fil-markets/retrievalmarket"
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
-	"github.com/filecoin-project/go-fil-markets/storagemarket/impl/providerstates"
 	"github.com/filecoin-project/go-state-types/abi"
-	"github.com/filecoin-project/go-statemachine/fsm"
 	"github.com/filecoin-project/go-statestore"
 	cli2 "github.com/filecoin-project/venus-market/cli"
 	"github.com/filecoin-project/venus-market/config"
@@ -204,15 +201,4 @@ func run(repo string, dst string, ctx context.Context) error {
 	}
 	return ioutil.WriteFile(dst, exportDataBytes, 0777)
 
-}
-func newProviderStateMachine(ds datastore.Batching, env fsm.Environment, notifier fsm.Notifier, storageMigrations versioning.VersionedMigrationList, target versioning.VersionKey) (fsm.Group, func(context.Context) error, error) {
-	return versionedfsm.NewVersionedFSM(ds, fsm.Parameters{
-		Environment:     env,
-		StateType:       storagemarket.MinerDeal{},
-		StateKeyField:   "State",
-		Events:          providerstates.ProviderEvents,
-		StateEntryFuncs: providerstates.ProviderStateEntryFuncs,
-		FinalityStates:  providerstates.ProviderFinalityStates,
-		Notifier:        notifier,
-	}, storageMigrations, target)
 }
