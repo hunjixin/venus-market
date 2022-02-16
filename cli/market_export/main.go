@@ -168,13 +168,13 @@ func run(repo string, dst string, ctx context.Context) error {
 			DealInfo:  piecestore.DealInfo{},
 			Status:    piece.Undefine,
 		}
-		deals = append(deals, minerDealIncludeStatus)
 		if minerDeal.DealID > 0 {
 			if val, ok := dealsInfos[minerDeal.DealID]; ok {
 				minerDealIncludeStatus.DealInfo = val.DealInfo
 				minerDealIncludeStatus.Status = val.Status
 			}
 		}
+		deals = append(deals, minerDealIncludeStatus)
 	}
 
 	data := exportData{
