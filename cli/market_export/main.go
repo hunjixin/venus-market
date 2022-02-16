@@ -13,8 +13,6 @@ import (
 	"github.com/filecoin-project/go-fil-markets/storagemarket"
 	"github.com/filecoin-project/go-state-types/abi"
 	"github.com/filecoin-project/go-statestore"
-	cli2 "github.com/filecoin-project/venus-market/cli"
-	"github.com/filecoin-project/venus-market/config"
 	"github.com/filecoin-project/venus-market/models"
 	"github.com/filecoin-project/venus-market/piece"
 	"github.com/filecoin-project/venus/pkg/constants"
@@ -47,17 +45,19 @@ func main() {
 		Flags: []cli.Flag{
 			RepoFlag,
 		},
-		Commands: append(cli2.ClientCmds, &cli.Command{
-			Name:  "export",
-			Usage: "export v1 data",
-			Flags: []cli.Flag{},
-			Action: func(c *cli.Context) error {
-				ctx := context.Background()
-				repo := c.String("repo")
-				exportPath := c.Args().Get(0)
-				return run(repo, exportPath, ctx)
+		Commands: []*cli.Command{
+			&cli.Command{
+				Name:  "export",
+				Usage: "export v1 data",
+				Flags: []cli.Flag{},
+				Action: func(c *cli.Context) error {
+					ctx := context.Background()
+					repo := c.String("repo")
+					exportPath := c.Args().Get(0)
+					return run(repo, exportPath, ctx)
+				},
 			},
-		}),
+		},
 	}
 
 	app.Setup()
@@ -67,10 +67,6 @@ func main() {
 }
 
 func run(repo string, dst string, ctx context.Context) error {
-	cfgPath := path.Join(repo, "config.toml")
-	cfg := config.DefaultMarketConfig
-	err := config.LoadConfig(cfgPath, cfg)
-
 	dbPath := path.Join(repo, "metadata")
 	metadataDS, err := badger.NewDatastore(dbPath, &badger.DefaultOptions)
 	if err != nil {
@@ -101,11 +97,6 @@ func run(repo string, dst string, ctx context.Context) error {
 		StorageAsk     *storagemarket.SignedStorageAsk
 		RetrievalAsk   *retrievalmarket.Ask
 		RetrievalDeals []retrievalmarket.ProviderDealState
-	}
-
-	mAddr, err := address.NewFromString(cfg.MinerAddress)
-	if err != nil {
-		return err
 	}
 
 	var minerDeals []storagemarket.MinerDeal
@@ -187,7 +178,7 @@ func run(repo string, dst string, ctx context.Context) error {
 	}
 
 	data := exportData{
-		Miner:          mAddr,
+		Miner:          deals[0].MinerDeal.Proposal.Provider,
 		MinerDeals:     deals,
 		SignedVoucher:  voucherDetail,
 		StorageAsk:     &storageAsk,
