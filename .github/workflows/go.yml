@@ -40,7 +40,7 @@ jobs:
       run: go test -v ./...
 
     - name: Run coverage
-      run:  go test ./... -coverpkg=github.com/filecoin-project/venus-market -coverprofile=coverage.txt -covermode=atomic
+      run:  go test ./... -coverprofile=coverage.txt -covermode=atomic
 
     - name: upload
       uses: codecov/codecov-action@v2
